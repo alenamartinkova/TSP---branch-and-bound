@@ -1,6 +1,7 @@
 from Coordinate import Coordinate
 from typing import List
-import numpy as np
+import itertools as it
+import multiprocessing as mp
 
 
 def open_file():
@@ -17,28 +18,76 @@ def open_file():
 
 def create_matrix(input_list: List[Coordinate]):
     output_matrix = []
-    row_size = column_size = len(input_list) + 1
+    row_size = column_size = len(input_list)
 
     for i in range(0, row_size):
         tmp = []
-
         for j in range(0, column_size):
-            if i == j:
-                tmp.append(0)
-            else:
-                tmp.append(input_list[j - 1])
+            tmp.append(0)
 
         output_matrix.append(tmp)
 
-    for row in output_matrix:
-        print(row)
+    for i in range(len(output_matrix)):
+        for j in range(len(output_matrix)):
+            if i != j:
+                output_matrix[i][j] = output_matrix[j][i] = input_list[i].distance(input_list[j])
 
     return output_matrix
 
 
-coords_list = open_file()
-coords_list = coords_list[:4]
-coords_list = [1, 2, 3, 4]
-matrix = create_matrix(coords_list)
+def evaluate_bnb(distances, perm, n, best_found):
+    result = 0
+    for i in range(n - 1):
+        result += distances[perm[i]][perm[i + 1]]
+        if result >= best_found:
+            return False, i
 
-#print(coords_list)
+    result = result + distances[perm[-1]][perm[0]]
+    return True, result
+
+
+def perms_prefix_bnb(distances, n, s):
+    perm = [a for a in range(n) if a != s]
+    best_found = 100000000
+    skip = False
+    val = 0
+    current = 0
+
+    for p in it.permutations(perm):
+        perm = [s]
+        perm.extend(p)
+
+        if skip:
+            if perm[val] == current:
+                continue
+            else:
+                skip = False
+                success, val = evaluate_bnb(distances, perm, n, best_found)
+        else:
+            success, val = evaluate_bnb(distances, perm, n, best_found)
+
+        if success:
+            if val < best_found:
+                best_found = val
+        else:
+            current = perm[val]
+            skip = True
+
+    return best_found
+
+
+def main():
+    coords_list = open_file()
+    x = 10
+    coords_list = coords_list[:x]
+    matrix = create_matrix(coords_list)
+    Is = list(range(0, x))
+
+    with mp.Pool(processes=9) as pool:
+        ret = pool.starmap(perms_prefix_bnb, zip(it.repeat(matrix), it.repeat(x), Is))
+
+    print(ret)
+
+
+if __name__ == '__main__':
+    main()
